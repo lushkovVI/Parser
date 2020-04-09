@@ -1,25 +1,19 @@
-_sha1pe = {
-type = “horizontal”
-vertices1 = {
-type1 = “horizontal1”
-vertices4 = {
-type4 = “horizontal4”
-point4 = { x4 = “1” y4 = “0” }
-}
-vertices5 = {
-point5 = { x5 = “1” y5 = “0” }
+shape = {
+type = “tetrahedron”
+vertices = {
+property = “parallel”
+point = { x = “1” y = “0” z = “0” }
+point = { x = “0” y = “1” z = “0” }
+vertices3 = {
+property3 = “collateral”
+point3 = { x = “1” y = “0” z = “0” }
+point3 = { x = “0” y = “1” z = “0” }
 }
 }
 vertices2 = {
-type2 = “horizontal2”
-vertices3 = {
-type3 = “horizontal3”
-point3 = { x3 = “1” y3 = “0” }
-}
-vertices6 = {
-type6 = “horizontal6”
-point6 = { x6 = “1” y6 = “0” }
-}
+property = “collateral”
+point2 = { x = “1” y = “0” z = “0” }
+point2 = { x = “0” y = “1” z = “0” }
 }
 color = { r = “0xFF” g = “0x00” b = “0x80” alpha = “0x80” }
 }

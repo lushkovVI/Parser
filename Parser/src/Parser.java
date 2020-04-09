@@ -7,63 +7,50 @@ import java.util.regex.Pattern;
 
 public class Parser {
     private File file;
-    private StringBuilder strbuilder;
+    private StringBuilder textFromFile;
     private boolean isChange = false;
-    public Tree tree;
+    private Tree tree;
     private Integer id = 0;
-
+    private StringBuilder compareString;
 
     Parser(String str) throws Exception {
         this.file = new File(str);
-        this.strbuilder = new StringBuilder();
+        this.textFromFile = new StringBuilder();
+        this.compareString = new StringBuilder();
         tree = new Tree();
     }
 
-    void readFile() throws IOException {
+    public void readFile() throws IOException {
         FileReader filereader = new FileReader(this.file);
         BufferedReader bufreader = new BufferedReader(filereader);
         while(bufreader.ready()){
-            strbuilder.append(bufreader.readLine()+"\n");
+            textFromFile.append(bufreader.readLine()).append("\n");
         }
     }
-
 
     private void saveToFile() throws IOException {
         tree.saveTreeToFile(tree.root,false);
     }
 
-    private StringBuilder getRootNode(){
-        int endIndex=0;
-        String regExp = "(\\w+)(\\s*)(=)(\\s*)[{](\\R)";
+    private Matcher getMather(String regExp,StringBuilder sourceString){
         Pattern pattern = Pattern.compile(regExp);
-        Matcher matherName = pattern.matcher(strbuilder);
-        if(matherName.find()){
-            endIndex = matherName.end();
-            regExp = "[}]$";
-            pattern = Pattern.compile(regExp);
-            Matcher mather = pattern.matcher(strbuilder);
-            if(mather.find()){
-                tree.addNode(id,0,matherName.group(1),strbuilder.substring(endIndex,strbuilder.length()-2));
-                id++;
-                isChange = true;
-                strbuilder = new StringBuilder(strbuilder.substring(endIndex,strbuilder.length()-2));
-                System.out.println(strbuilder);
-            }
-        }
-        return  strbuilder;
+        return pattern.matcher(sourceString);
     }
 
-
-
-    private void parseFile(StringBuilder str,Integer parentId){
+    private void parseFile(StringBuilder str,Integer parentId) throws Exception {
         if(!isChange){
-            str = getNodeListOfLists(str,parentId);
+            str = getNodeChild(str,parentId);
+            compareString = new StringBuilder(str);
         }
         if(isChange){
             isChange = false;
             str = getNode(str,parentId);
             str = getNodeList(str,parentId);
             parseFile(str,parentId);
+            if(compareString.toString().equals(str.toString()) && compareString.length() > 1)
+            {
+                throw new Exception("Неверный формат данных");
+            }
         }
     }
 
@@ -73,36 +60,50 @@ public class Parser {
             throw new Exception("Неверный формат данных");
         }
         parseFile(str,0);
+        saveToFile();
     }
 
-    private StringBuilder getNodeListOfLists(StringBuilder buffer,Integer parentId){
-        StringBuilder tempStrB = new StringBuilder(buffer);
-        StringBuilder tempStrB2 = new StringBuilder(buffer);
-
-        String regExp = "(\\w+)(\\s*)(=)(\\s*)[{](\\R)";
-        Pattern pattern = Pattern.compile(regExp);
-        Matcher matherName = pattern.matcher(tempStrB);
-        while(matherName.find()){
-            String temp = new String(tempStrB);
-            int end = 0;
-            end = findBorders(temp,matherName);
-
-            System.out.println(temp);
-            System.out.println(tempStrB);
-            if(end != 0){
-                tree.addNode(id,parentId,matherName.group(1),tempStrB.substring(matherName.end(),end-1));
+    private StringBuilder getRootNode(){
+        String regExp = "(^[A-Za-z_]+[A-Za-z0-9_]+\\s?)(=)(\\s*)[{](\\R)";
+        Matcher matherName = getMather(regExp,textFromFile);
+        if(matherName.find()){
+            regExp = "[}]$";
+            Matcher mather = getMather(regExp,textFromFile);
+            if(mather.find()){
+                tree.addNode(id,null,matherName.group(1),textFromFile.substring(matherName.end(),textFromFile.length()-2).replaceAll("\n",""));
+                id++;
                 isChange = true;
-                StringBuilder outerString = new StringBuilder(tempStrB.substring(matherName.end(),end-1));
-                tempStrB2 = new StringBuilder(tempStrB.substring(end, tempStrB.length()));
-                if(outerString.length() > 2){
-                    id++;
-                    parseFile(outerString,id-1);
-                }
-                parseFile(tempStrB2,parentId);
-                return tempStrB2;
+                textFromFile = new StringBuilder(textFromFile.substring(matherName.end(),textFromFile.length()-2));
             }
         }
-        return tempStrB2;
+        return  textFromFile;
+    }
+
+    private StringBuilder getNodeChild(StringBuilder tmp,Integer parentId) throws Exception {
+        StringBuilder sourceString = new StringBuilder(tmp);
+        StringBuilder bufferString = new StringBuilder(tmp);
+
+        String regExp = "(^\\R?[A-Za-z_]+[A-Za-z0-9_]*\\s?)(=)(\\s*)[{](\\R)";
+        Matcher matherName = getMather(regExp,sourceString);
+        while(matherName.find()){
+            String temp = new String(sourceString);
+            int end = 0;
+            end = findBorders(temp,matherName);
+            if(end != 0){
+                tree.addNode(id,parentId,matherName.group(1).replaceAll("\n",""),sourceString.substring(matherName.end(),end-1).replaceAll("\n",""));
+                isChange = true;
+                StringBuilder innerString = new StringBuilder(sourceString.substring(matherName.end(),end-1));
+                bufferString = new StringBuilder(sourceString.substring(end, sourceString.length()));
+                if(innerString.length() > 2){
+                    id++;
+                    parseFile(innerString,id-1);
+                }
+                parseFile(bufferString,parentId);
+                isChange = true;
+                return bufferString;
+            }
+        }
+        return bufferString;
     }
 
     private int findBorders(String temp,Matcher matherName ){
@@ -122,54 +123,59 @@ public class Parser {
             }
         }
         return end;
-
     }
 
-    private StringBuilder getNodeList(StringBuilder buffer,Integer parentId){
-        StringBuilder tempStrB = new StringBuilder(buffer);
-        StringBuilder tempStrB2 = new StringBuilder(buffer);
-        String regExp ="(^[A-Za-z_]+[A-Za-z0-9_]+\\s?)(=)(\\s?)[{][(\\s?\\w+\\s*=\\s*“\\w+”)]+[}](\\R*)";
-        Pattern pattern = Pattern.compile(regExp);
-        Matcher mather = pattern.matcher(tempStrB);
+
+
+    private StringBuilder getNode(StringBuilder tmp,Integer parent){
+        StringBuilder sourceString = new StringBuilder(tmp);
+        StringBuilder bufferString = new StringBuilder(tmp);
+
+        String regExp ="([A-Za-z_]+[A-Za-z0-9_]+\\s?)(=)(\\s?“[A-Za-z_]+[A-Za-z0-9_]+”\\R)";
+        Matcher mather = getMather(regExp,sourceString);
+
         while(mather.find()){
-            if(checkValidNode(tempStrB,tempStrB2,mather.start(),mather.end())){
-                tempStrB2.delete(mather.start(),mather.end());
+            if(checkValidNode(sourceString,bufferString,mather.start(),mather.end())){
+                bufferString.delete(mather.start(),mather.end());
+                tree.addNode(id,parent,mather.group(1).replaceAll("\n",""),getValue(mather.group(0),'“','”').replaceAll("\n",""));
+                id++;
+                isChange = true;
+                sourceString = new StringBuilder(bufferString);
+            }
+        }
+        return bufferString;
+    }
+
+    private StringBuilder getNodeList(StringBuilder tmp,Integer parentId) throws Exception {
+        StringBuilder sourceString = new StringBuilder(tmp);
+        StringBuilder bufferString = new StringBuilder(tmp);
+        String regExp ="(^\\R?[A-Za-z_]+[A-Za-z0-9_]*\\s?)(=)(\\s?)[{][(\\s?\\w+\\s*=\\s*“\\w+”)]+[}](\\R*)";
+        Matcher mather = getMather(regExp,sourceString);
+        while(mather.find()){
+            if(checkValidNode(sourceString,bufferString,mather.start(),mather.end())){
+                bufferString.delete(mather.start(),mather.end());
                 String values = getValue(mather.group(0),'{','}');
-                tree.addNode(id,parentId,mather.group(1),values);
+                tree.addNode(id,parentId,mather.group(1).replaceAll("\n",""),values.replaceAll("\n",""));
                 id++;
                 isChange = true;
-                getNodesFromNodeList(values,id-1);
+                getNodesFromNodeList(values.replaceAll("\n",""),id-1);
             }
         }
-        return new StringBuilder(tempStrB2);
-    }
-    private StringBuilder getNode(StringBuilder buffer,Integer parent){
-        StringBuilder tempStrB = new StringBuilder(buffer);
-        StringBuilder tempStrB2 = new StringBuilder(buffer);
-
-        String regExp ="(^[A-Za-z_]+[A-Za-z0-9_]+\\s*)(=)(\\s?“[A-Za-z_]+[A-Za-z0-9_]+”\\R)";
-        Pattern pattern = Pattern.compile(regExp);
-        Matcher mather = pattern.matcher(tempStrB);
-
-        while(mather.find()){
-            if(checkValidNode(tempStrB,tempStrB2,mather.start(),mather.end())){
-                tempStrB2.delete(mather.start(),mather.end());
-                tree.addNode(id,parent,mather.group(1),getValue(mather.group(0),'“','”'));
-                id++;
-                isChange = true;
-                tempStrB = new StringBuilder(tempStrB2);
-            }
-        }
-        return tempStrB2;
+        return bufferString;
     }
 
-    private void getNodesFromNodeList(String value,int parentId){
-        String regExp ="(\\s*\\w+\\s*)(=)(\\s*“\\w+”\\s*)";
+    private void getNodesFromNodeList(String value,int parentId) throws Exception {
+        String regExp ="(\\s?[A-Za-z_]+[A-Za-z0-9_]*\\s?)(=)(\\s*“\\w+”\\s*)";
         Pattern pattern = Pattern.compile(regExp);
         Matcher mather = pattern.matcher(value);
+        String stringCheck = new String(value);
         while(mather.find()) {
-            tree.addNode(id,parentId,mather.group(1),getValue(mather.group(3),'“','”'));
+            stringCheck = stringCheck.replace(mather.group(0),"");
+            tree.addNode(id,parentId,mather.group(1).replaceAll("\n",""),getValue(mather.group(3),'“','”').replaceAll("\n",""));
             id++;
+        }
+        if(stringCheck.length() != 0){
+            throw new Exception("Неверный формат данных");
         }
     }
 
@@ -179,16 +185,14 @@ public class Parser {
         return value.substring(start+1,end);
     }
 
-
-
-    private boolean checkValidNode(StringBuilder tempB ,StringBuilder tempB2,int start,int end){
+    private boolean checkValidNode(StringBuilder sourceString ,StringBuilder bufferString,int start,int end){
         if(start == 0 || start ==1){
             return true;
         }
-        if(end == tempB2.length()){
+        if(end == bufferString.length()){
             return true;
         }
-        String str = tempB.substring(start - 3,start);
+        String str = sourceString.substring(start - 3,start);
         if( str.charAt(str.length()-1) == ('{')){
             return false;
         }
@@ -198,13 +202,10 @@ public class Parser {
         return false;
     }
 
-
-
     public static void main(String[] args) throws Exception {
          Parser prs = new Parser("source.txt");
          prs.readFile();
          prs.parseFile();
-         prs.tree.saveTreeToFile(prs.tree.root,false);
     }
 }
 
